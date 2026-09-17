@@ -189,6 +189,16 @@ _T: dict[str, str] = {
     "✅ OpenVINO 模型目录": "✅ OpenVINO model dir",
     "无效文件": "Invalid file",
     "更新源配置": "Update Source",
+    "默认从 GitHub Releases 检查最新版本;勾选下方可改用自定义更新源。":
+        "Checks the latest version from GitHub Releases; tick below to use a custom source.",
+    "自定义更新源地址(JSON: version/url/notes):":
+        "Custom update source URL (JSON: version/url/notes):",
+    "⬆️ 立即更新": "⬆️ Update Now",
+    "🌐 打开下载页": "🌐 Open Download Page",
+    "自动下载并安装新版本(仅打包版可用)":
+        "Download & install the new version (packaged build only)",
+    "确认更新": "Confirm Update",
+    "即将自动更新": "Auto-update starting",
     "训练日志:等待开始训练...": "Training log: waiting to start...",
     "依赖日志:点击「检测全部依赖」开始扫描": "Dependency log: click Detect All to scan",
     "提示": "Info",

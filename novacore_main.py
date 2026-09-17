@@ -14,6 +14,8 @@ import sys
 import time
 import shutil
 import subprocess
+import tempfile
+import webbrowser
 from datetime import datetime
 from pathlib import Path
 from typing import Callable, Optional
@@ -32,6 +34,7 @@ from PyQt6.QtCore import QThread, pyqtSignal
 
 from novacore import APP_NAME, APP_VERSION, gguf, hardware, modelstore, paths
 from novacore import deps as deps_core
+from novacore import updater
 from novacore.api import ApiServer
 from novacore.chat import ChatSession, ConversationStore, GenerationWorker
 from novacore.config import (
@@ -78,6 +81,37 @@ class SimpleWorker(QThread):
             self.ok.emit(self._fn())
         except Exception as e:  # noqa: BLE001
             self.err.emit(str(e))
+
+
+class UpdateDownloadWorker(QThread):
+    """后台下载新版本安装包,带进度与取消。"""
+    progress = pyqtSignal(int, int)   # (已下载字节, 总字节)
+    done = pyqtSignal(bool, str)      # (是否成功, 保存路径 或 错误信息)
+
+    def __init__(self, url: str, dest: str, parent=None):
+        super().__init__(parent)
+        self._url = url
+        self._dest = dest
+        self._cancel = False
+
+    def cancel(self) -> None:
+        self._cancel = True
+
+    def run(self) -> None:
+        try:
+            updater.download_asset(
+                self._url, self._dest,
+                progress=lambda d, t: self.progress.emit(int(d), int(t)),
+                cancel_check=lambda: self._cancel)
+            if self._cancel:
+                self.done.emit(False, "已取消")
+                return
+            self.done.emit(True, self._dest)
+        except InterruptedError:
+            self.done.emit(False, "已取消")
+        except Exception as e:  # noqa: BLE001
+            self.done.emit(False, str(e))
+
 
 
 # ==================== 右下角下载弹窗 ====================
@@ -727,6 +761,7 @@ class MainWindow(QMainWindow):
         self._loading = False
         self._generating = False
         self._pending_image: Optional[str] = None
+        self._pending_release: Optional[dict] = None
         self._closing = False
         self._local_models: list[dict] = []
         self._model_rows: dict[str, LocalModelRow] = {}
@@ -1194,15 +1229,31 @@ class MainWindow(QMainWindow):
         gb4 = QGroupBox(tr("更新源配置"))
         lay4 = QVBoxLayout(gb4)
         lay4.setSpacing(10)
-        lay4.addWidget(QLabel("更新源地址(返回 JSON:{\"version\",\"url\",\"notes\"}):"))
+        _hint = ("默认从 GitHub Releases 检查最新版本;"
+                 "勾选下方可改用自定义更新源。")
+        self.update_hint = QLabel(tr(_hint))
+        self.update_hint.setStyleSheet("color:#889;")
+        self.update_hint.setWordWrap(True)
+        lay4.addWidget(self.update_hint)
+        lay4.addWidget(QLabel(tr("自定义更新源地址(JSON: version/url/notes):")))
         self.update_url = QLineEdit(str(cfg.get("update_source_url", "")))
         self.update_url.setPlaceholderText("https://example.com/novacore-update.json")
         lay4.addWidget(self.update_url)
         self.custom_update = QCheckBox(tr("启用自定义更新源"))
         self.custom_update.setChecked(bool(cfg.get("custom_update_enable", False)))
         lay4.addWidget(self.custom_update)
+        btn_row4 = QHBoxLayout()
         btn_check_update = QPushButton(tr("检查更新"))
-        lay4.addWidget(btn_check_update)
+        self.btn_do_update = QPushButton(tr("⬆️ 立即更新"))
+        self.btn_do_update.setEnabled(False)
+        self.btn_do_update.setToolTip(tr("自动下载并安装新版本(仅打包版可用)"))
+        self.btn_open_release = QPushButton(tr("🌐 打开下载页"))
+        self.btn_open_release.setEnabled(False)
+        btn_row4.addWidget(btn_check_update)
+        btn_row4.addWidget(self.btn_do_update)
+        btn_row4.addWidget(self.btn_open_release)
+        btn_row4.addStretch()
+        lay4.addLayout(btn_row4)
         l4.addWidget(gb4)
         self.btn_check_update = btn_check_update
 
@@ -1501,6 +1552,8 @@ class MainWindow(QMainWindow):
         self.btn_install_all.clicked.connect(self.install_all_missing_deps)
         self.btn_save_set.clicked.connect(self.save_settings)
         self.btn_check_update.clicked.connect(self.check_update)
+        self.btn_do_update.clicked.connect(self.start_self_update)
+        self.btn_open_release.clicked.connect(self.open_release_page)
         self.temp_slider.valueChanged.connect(
             lambda v: self.temp_lab.setText(f"{v / 100:.2f}"))
 
@@ -2503,34 +2556,27 @@ class MainWindow(QMainWindow):
             self.train_log.append("⏹ 正在停止训练(完成当前步后安全中止)...")
 
     # ==================== 系统更新 ====================
-    DEFAULT_UPDATE_URL = ("https://raw.githubusercontent.com/NovaCore-Local/"
-                          "NovaCore/main/update.json")
-
     def check_update(self) -> None:
         url = self.update_url.text().strip()
         use_custom = self.custom_update.isChecked()
         cfg.set("update_source_url", url)
         cfg.set("custom_update_enable", use_custom)
         save_config(cfg)
+        self._pending_release = None
+        self.btn_do_update.setEnabled(False)
+        self.btn_open_release.setEnabled(False)
 
         if use_custom and not url:
             self.update_log.append("❌ 已勾选「启用自定义更新源」但未填写地址")
             return
         if not use_custom:
-            # 不启用自定义源 → 使用内置默认更新地址
-            url = self.DEFAULT_UPDATE_URL
-            self.update_log.append(f"使用默认更新源: {url}")
+            # 不启用自定义源 → 使用内置默认更新源(GitHub Releases)
+            self.update_log.append(
+                f"使用默认更新源(GitHub Releases): {updater.GITHUB_REPO}")
+            do_check = lambda: updater.latest_release()
         else:
             self.update_log.append(f"使用自定义更新源: {url}")
-
-        def do_check():
-            import requests
-            resp = requests.get(url, timeout=15)
-            resp.raise_for_status()
-            data = resp.json()
-            if not isinstance(data, dict):
-                raise ValueError("更新信息不是 JSON 对象")
-            return data
+            do_check = lambda: updater.from_custom_json(url)
 
         self._update_worker = SimpleWorker(do_check)
         self._update_worker.ok.connect(self._on_update_info)
@@ -2540,18 +2586,124 @@ class MainWindow(QMainWindow):
         self._update_worker.start()
 
     def _on_update_info(self, data: dict) -> None:
+        data = data if isinstance(data, dict) else {}
         latest = str(data.get("version", "")).strip()
         notes = str(data.get("notes", ""))
-        dl_url = str(data.get("url", ""))
+        dl_url = str(data.get("url", "")) or updater.GITHUB_RELEASES_PAGE
         self.update_log.append(f"当前版本: {APP_VERSION}")
         self.update_log.append(f"最新版本: {latest or '(未提供)'}")
         if notes:
             self.update_log.append(f"更新说明: {notes}")
-        if latest and latest != APP_VERSION:
-            self.update_log.append("🆕 发现新版本!" +
-                                   (f" 下载地址: {dl_url}" if dl_url else ""))
+        if latest and updater.is_newer(latest, APP_VERSION):
+            self._pending_release = data
+            self.btn_open_release.setEnabled(True)
+            has_asset = bool(data.get("asset_url"))
+            if updater.supports_self_update() and has_asset:
+                self.btn_do_update.setEnabled(True)
+                self.update_log.append("🆕 发现新版本! 点击「⬆️ 立即更新」"
+                                       "可自动下载并安装。")
+            else:
+                self.update_log.append(
+                    "🆕 发现新版本! " + (f"下载地址: {dl_url}" if dl_url else ""))
+                if not updater.supports_self_update():
+                    self.update_log.append(
+                        "(源码运行模式:请点「🌐 打开下载页」手动获取新版)")
+                elif not has_asset:
+                    self.update_log.append("(该版本未提供安装包附件,请到下载页获取)")
         elif latest:
             self.update_log.append("✅ 已是最新版本")
+
+    def open_release_page(self) -> None:
+        """在浏览器打开下载页。"""
+        rel = self._pending_release or {}
+        url = str(rel.get("url") or updater.GITHUB_RELEASES_PAGE)
+        try:
+            webbrowser.open(url)
+        except Exception as e:
+            QMessageBox.warning(self, tr("错误"), f"无法打开浏览器: {e}")
+
+    def start_self_update(self) -> None:
+        """下载新版本并安排退出后自动替换重启(仅打包版)。"""
+        rel = self._pending_release
+        if not rel:
+            QMessageBox.information(self, tr("提示"), "请先点击「检查更新」。")
+            return
+        if not updater.supports_self_update():
+            QMessageBox.information(
+                self, tr("提示"),
+                "源码运行模式不支持自动更新。\n请用 git pull 更新,"
+                "或点「🌐 打开下载页」获取新版。")
+            return
+        asset_url = str(rel.get("asset_url") or "")
+        if not asset_url:
+            QMessageBox.warning(self, tr("提示"),
+                                "该版本没有可下载的安装包附件。")
+            return
+        reply = QMessageBox.question(
+            self, "确认更新",
+            f"将下载并安装 {rel.get('version') or '新版本'},"
+            f"完成后程序会自动重启。\n更新期间请勿关闭电源。是否继续?")
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        name = str(rel.get("asset_name") or "NovaCore-Local-update.zip")
+        dest = os.path.join(tempfile.gettempdir(), name)
+        self.btn_do_update.setEnabled(False)
+        self.update_log.append(f"⬇️ 开始下载: {name}")
+        worker = UpdateDownloadWorker(asset_url, dest)
+        worker.progress.connect(self._on_update_progress)
+        worker.done.connect(self._on_update_downloaded)
+        self._update_dl_worker = worker
+        registry.register(worker)
+        worker.start()
+
+    def _on_update_progress(self, done: int, total: int) -> None:
+        if total > 0:
+            pct = done * 100 // total
+            mb = done / 1024 / 1024
+            tmb = total / 1024 / 1024
+            # 用最后一行覆盖式显示进度(打印刷新)
+            self.update_log.append(f"⬇️ 下载中 {pct}%  ({mb:.1f}/{tmb:.1f} MB)")
+        else:
+            self.update_log.append(f"⬇️ 下载中 {done/1024/1024:.1f} MB")
+
+    def _on_update_downloaded(self, ok: bool, info: str) -> None:
+        if not ok:
+            self.update_log.append(f"❌ 下载失败: {info}")
+            self.btn_do_update.setEnabled(True)
+            QMessageBox.warning(self, "更新下载失败", info)
+            return
+        zip_path = info
+        self.update_log.append(f"✅ 下载完成: {zip_path}")
+        app_dir = updater.current_app_dir()
+        if app_dir is None:
+            self.update_log.append("❌ 无法定位安装目录,更新中止")
+            return
+        try:
+            updater.launch_update(zip_path, app_dir,
+                                  Path(sys.executable), os.getpid())
+        except Exception as e:
+            self.update_log.append(f"❌ 启动更新脚本失败: {e}")
+            QMessageBox.warning(self, "更新失败", str(e))
+            return
+        self.update_log.append("🚀 即将退出并自动完成安装、重启...")
+        QMessageBox.information(
+            self, "即将自动更新",
+            "程序将退出并自动安装新版本,随后自动重新打开。\n"
+            "请稍候片刻,勿手动关闭更新的命令行窗口。")
+        # 触发退出;main() 里的 os._exit(0) 会确保进程干净结束,
+        # 好让更新脚本能替换正在使用的文件。
+        QTimer.singleShot(300, self._quit_for_update)
+
+    def _quit_for_update(self) -> None:
+        self._closing = True
+        try:
+            registry.shutdown()
+        except Exception:
+            pass
+        app = QApplication.instance()
+        if app is not None:
+            app.quit()
+
 
     # ==================== 依赖管理 ====================
     def check_deps(self) -> None:
