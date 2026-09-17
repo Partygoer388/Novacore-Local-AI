@@ -2697,7 +2697,7 @@ class MainWindow(QMainWindow):
     def _quit_for_update(self) -> None:
         self._closing = True
         try:
-            registry.shutdown()
+            self.close()  # 触发 closeEvent:保存会话、停止后台线程
         except Exception:
             pass
         app = QApplication.instance()

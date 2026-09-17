@@ -130,48 +130,49 @@ def supports_self_update() -> bool:
     return getattr(sys, "frozen", False)
 
 
-def _ps_quote(path: str) -> str:
-    """PowerShell 单引号字符串转义。"""
-    return "'" + str(path).replace("'", "''") + "'"
+def build_update_script() -> str:
+    """生成更新用的 PowerShell 脚本(纯 ASCII,路径由命令行参数传入)。
 
-
-def build_update_script(zip_path: str, app_dir: str, exe_path: str,
-                        pid: int) -> str:
-    """生成更新用的 PowerShell 脚本内容(等待退出 -> 解压覆盖 -> 重启)。"""
-    return f"""$ErrorActionPreference = 'SilentlyContinue'
-$zip = {_ps_quote(zip_path)}
-$app = {_ps_quote(app_dir)}
-$exe = {_ps_quote(exe_path)}
-$pid_to_wait = {int(pid)}
-# 1) 等待当前程序退出(最多 5 分钟)
-for ($i = 0; $i -lt 600; $i++) {{
-    if (-not (Get-Process -Id $pid_to_wait -ErrorAction SilentlyContinue)) {{ break }}
+    关键:脚本内容不含任何非 ASCII 字符,路径通过 -Zip/-App/-Exe 参数传递。
+    这样无论安装目录是否包含中文/空格,都不会受 PowerShell 读取脚本文件
+    时的编码影响(Windows PowerShell 5.1 对无 BOM 的 UTF-8 会按 ANSI 解析)。
+    """
+    return r"""param(
+  [Parameter(Mandatory=$true)][string]$Zip,
+  [Parameter(Mandatory=$true)][string]$App,
+  [Parameter(Mandatory=$true)][string]$Exe,
+  [Parameter(Mandatory=$true)][int]$AppPid
+)
+$ErrorActionPreference = 'SilentlyContinue'
+# 1) wait for the running app to exit (max 5 minutes)
+for ($i = 0; $i -lt 600; $i++) {
+    if (-not (Get-Process -Id $AppPid -ErrorAction SilentlyContinue)) { break }
     Start-Sleep -Milliseconds 500
-}}
+}
 Start-Sleep -Seconds 2
-# 2) 解压到临时目录
+# 2) extract the downloaded zip to a temp dir
 $tmp = Join-Path $env:TEMP ('novacore_upd_' + [System.Guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Force -Path $tmp | Out-Null
-Expand-Archive -LiteralPath $zip -DestinationPath $tmp -Force
-# 3) 定位解压后的根目录(zip 内通常有一层 NovaCore-Local/)
+Expand-Archive -LiteralPath $Zip -DestinationPath $tmp -Force
+# 3) locate the real root (zip usually contains one top folder)
 $src = $tmp
 $dirs = @(Get-ChildItem -Path $tmp -Directory)
-if ($dirs.Count -eq 1) {{ $src = $dirs[0].FullName }}
-# 4) 覆盖安装目录
-Copy-Item -Path (Join-Path $src '*') -Destination $app -Recurse -Force
-# 5) 清理与重启
+if ($dirs.Count -eq 1) { $src = $dirs[0].FullName }
+# 4) overwrite the install directory
+Copy-Item -Path (Join-Path $src '*') -Destination $App -Recurse -Force
+# 5) cleanup and relaunch
 Remove-Item -Recurse -Force $tmp -ErrorAction SilentlyContinue
-Remove-Item -Force $zip -ErrorAction SilentlyContinue
-if (Test-Path $exe) {{ Start-Process -FilePath $exe }}
+Remove-Item -Force $Zip -ErrorAction SilentlyContinue
+if (Test-Path $Exe) { Start-Process -FilePath $Exe }
 Remove-Item -Force $MyInvocation.MyCommand.Path -ErrorAction SilentlyContinue
 """
 
 
 def launch_update(zip_path: str, app_dir: Path, exe_path: Path, pid: int) -> Path:
     """把更新脚本写入临时文件并分离启动,随后本进程应尽快退出。"""
-    script = build_update_script(str(zip_path), str(app_dir), str(exe_path), pid)
+    script = build_update_script()
     fd, script_path = tempfile.mkstemp(prefix="novacore_update_", suffix=".ps1")
-    with os.fdopen(fd, "w", encoding="utf-8") as f:
+    with os.fdopen(fd, "w", encoding="ascii", errors="replace") as f:
         f.write(script)
     flags = 0
     if sys.platform == "win32":
@@ -179,6 +180,8 @@ def launch_update(zip_path: str, app_dir: Path, exe_path: Path, pid: int) -> Pat
                  | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0x00000200))
     subprocess.Popen(
         ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass",
-         "-WindowStyle", "Hidden", "-File", script_path],
+         "-WindowStyle", "Hidden", "-File", script_path,
+         "-Zip", str(zip_path), "-App", str(app_dir),
+         "-Exe", str(exe_path), "-AppPid", str(int(pid))],
         close_fds=True, creationflags=flags)
     return Path(script_path)

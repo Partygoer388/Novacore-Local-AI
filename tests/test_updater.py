@@ -125,16 +125,20 @@ class TestDownload(unittest.TestCase):
 
 
 class TestUpdateScript(unittest.TestCase):
-    def test_script_contains_paths_and_steps(self):
-        script = updater.build_update_script(
-            r"C:\T\app.zip", r"C:\App\NovaCore-Local",
-            r"C:\App\NovaCore-Local\NovaCore-Local.exe", 4321)
-        self.assertIn(r"C:\T\app.zip", script)
-        self.assertIn(r"C:\App\NovaCore-Local", script)
+    def test_script_is_ascii_and_param_based(self):
+        script = updater.build_update_script()
+        # 脚本必须纯 ASCII(避免 PowerShell 5.1 按 ANSI 读中文脚本导致乱码)
+        script.encode("ascii")
+        self.assertIn("param(", script)
+        self.assertIn("$Zip", script)
+        self.assertIn("$App", script)
+        self.assertIn("$Exe", script)
+        self.assertIn("$AppPid", script)
         self.assertIn("Expand-Archive", script)
         self.assertIn("Copy-Item", script)
         self.assertIn("Start-Process", script)
-        self.assertIn("4321", script)
+        # 路径不再硬编码进脚本
+        self.assertNotIn("NovaCore-Local.exe", script)
 
     def test_source_mode_no_self_update(self):
         # 单元测试在源码模式下运行,应报告不支持自更新
