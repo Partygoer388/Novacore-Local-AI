@@ -38,6 +38,7 @@ from novacore.config import (
     DOWNLOAD_SOURCE_CHOICES, ENGINE_CHOICES, THEME_CHOICES,
     UI_SCALE_CHOICES, load_config, save_config,
 )
+from novacore.i18n import LANG_CHOICES, tr, set_language
 from novacore.downloader import DownloadWorker, OVDirectoryDownloadWorker
 from novacore.engines import get_manager
 from novacore.engines.ollama import find_ollama_exe
@@ -489,7 +490,7 @@ class StoreRow(QWidget):
         text_box = QWidget()
         text_box.setLayout(text_col)
 
-        btn = QPushButton("下载")
+        btn = QPushButton(tr("下载"))
         btn.setFixedWidth(_s(90))
         btn.clicked.connect(self.open_download)
         lay.addWidget(text_box, stretch=8)
@@ -627,13 +628,13 @@ class LocalModelRow(QWidget):
         ctx = info.get("context_length")
 
         if item.get("valid"):
-            kind, kind_color = "✅ 有效 GGUF", "#10b981"
+            kind, kind_color = tr("✅ 有效 GGUF"), "#10b981"
             extra = f"  |  {arch}" + (f" / ctx {ctx}" if ctx else "")
         elif item.get("reason") == gguf.DIR_HINT and self._is_openvino_dir():
-            kind, kind_color = "✅ OpenVINO 模型目录", "#10b981"
+            kind, kind_color = tr("✅ OpenVINO 模型目录"), "#10b981"
             extra = ""
         else:
-            kind, kind_color = f"❌ {item.get('reason', '无效文件')}", "#ef4444"
+            kind, kind_color = "❌ " + tr(item.get('reason', '无效文件')), "#ef4444"
             extra = ""
 
         lab = QLabel(f"{name}  |  {size_txt}  |  {kind}{extra}")
@@ -642,7 +643,7 @@ class LocalModelRow(QWidget):
         lay.addWidget(lab, stretch=7)
 
         # 当前运行状态徽章(启动中/运行中/已停止)
-        self.badge = QLabel("💤 已停止")
+        self.badge = QLabel(tr("💤 已停止"))
         self.badge.setStyleSheet("color:#889;")
         self.badge.setFixedWidth(_s(96))
         self.badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -652,16 +653,16 @@ class LocalModelRow(QWidget):
         self.btn_load = None
         self.btn_close = None
         if loadable:
-            self.btn_load = QPushButton("加载模型")
+            self.btn_load = QPushButton(tr("加载模型"))
             self.btn_load.setFixedWidth(_s(100))
             self.btn_load.clicked.connect(self.load_model)
             lay.addWidget(self.btn_load)
-            self.btn_close = QPushButton("关闭模型")
+            self.btn_close = QPushButton(tr("关闭模型"))
             self.btn_close.setFixedWidth(_s(100))
             self.btn_close.clicked.connect(self.close_model)
             self.btn_close.setVisible(False)
             lay.addWidget(self.btn_close)
-        btn_del = QPushButton("删除")
+        btn_del = QPushButton(tr("删除"))
         btn_del.setFixedWidth(_s(70))
         btn_del.clicked.connect(self.delete_file)
         lay.addWidget(btn_del)
@@ -805,13 +806,13 @@ class MainWindow(QMainWindow):
     # ==================== 导航 ====================
     def build_nav(self) -> None:
         items = [
-            ("💬  对话面板", 0),
-            ("📦  模型商店", 1),
-            ("💾  本地模型", 2),
-            ("🎯  模型训练", 3),
-            ("🔄  系统更新", 4),
-            ("🔧  依赖管理", 5),
-            ("⚙️  系统设置", 6),
+            (tr("💬  对话面板"), 0),
+            (tr("📦  模型商店"), 1),
+            (tr("💾  本地模型"), 2),
+            (tr("🎯  模型训练"), 3),
+            (tr("🔄  系统更新"), 4),
+            (tr("🔧  依赖管理"), 5),
+            (tr("⚙️  系统设置"), 6),
         ]
         for txt, idx in items:
             b = QPushButton(txt)
@@ -858,10 +859,10 @@ class MainWindow(QMainWindow):
         hl = QVBoxLayout(hist)
         hl.setContentsMargins(10, 12, 10, 12)
         hl.setSpacing(8)
-        hist_title = QLabel("📜 对话历史")
+        hist_title = QLabel(tr("📜 对话历史"))
         hist_title.setStyleSheet("font-size:14px; font-weight:600;")
         hl.addWidget(hist_title)
-        btn_new_chat = QPushButton("🆕 新建对话")
+        btn_new_chat = QPushButton(tr("🆕 新建对话"))
         btn_new_chat.clicked.connect(self.on_new_chat)
         hl.addWidget(btn_new_chat)
         self.hist_list = QListWidget()
@@ -871,7 +872,7 @@ class MainWindow(QMainWindow):
             "QListWidget::item:hover{background:rgba(255,255,255,0.06);}"
             "QListWidget::item:selected{background:rgba(37,99,235,0.2);}")
         hl.addWidget(self.hist_list, stretch=1)
-        btn_clear_all = QPushButton("🗑 清空全部历史")
+        btn_clear_all = QPushButton(tr("🗑 清空全部历史"))
         btn_clear_all.setStyleSheet("color:#c66;")
         btn_clear_all.clicked.connect(self.on_clear_all_sessions)
         hl.addWidget(btn_clear_all)
@@ -892,22 +893,22 @@ class MainWindow(QMainWindow):
         top_bar.setObjectName("chatTop")
         top_lay = QHBoxLayout(top_bar)
         top_lay.setContentsMargins(14, 10, 14, 10)
-        top_lay.addWidget(QLabel("推理设备:"))
+        top_lay.addWidget(QLabel(tr("推理设备:")))
         self.device_sel = QComboBox()
         self.device_sel.addItems(["CPU", "GPU", "NPU-OpenVINO"])
         self.device_sel.setCurrentText(str(cfg.get("prefer_device", "CPU")))
         top_lay.addWidget(self.device_sel)
         top_lay.addSpacing(12)
-        top_lay.addWidget(QLabel("选择模型:"))
+        top_lay.addWidget(QLabel(tr("选择模型:")))
         self.model_sel = QComboBox()
         self.model_sel.setMinimumWidth(240)
         top_lay.addWidget(self.model_sel)
-        btn_load = QPushButton("加载")
+        btn_load = QPushButton(tr("加载"))
         btn_load.setFixedWidth(_s(70))
         btn_load.clicked.connect(self.on_load_selected_model)
         self.btn_chat_load = btn_load
         top_lay.addWidget(btn_load)
-        btn_unload = QPushButton("停止")
+        btn_unload = QPushButton(tr("停止"))
         btn_unload.setFixedWidth(_s(70))
         btn_unload.setToolTip("停止当前模型并释放显存/内存(不会删除模型文件)")
         btn_unload.clicked.connect(self.on_unload_model)
@@ -917,7 +918,7 @@ class MainWindow(QMainWindow):
 
         self.chat_box = QTextEdit()
         self.chat_box.setReadOnly(True)
-        self.chat_box.append(f"=== {APP_NAME} {APP_VERSION} 本地AI引擎 就绪 ===")
+        self.chat_box.append(f"=== {APP_NAME} {APP_VERSION} " + tr("本地AI引擎 就绪") + " ===")
         self.chat_box.append("请在「本地模型」页或上方下拉框加载模型后开始对话;"
                              "API 服务可在「系统设置」页开启。\n")
         l0.addWidget(self.chat_box)
@@ -941,15 +942,15 @@ class MainWindow(QMainWindow):
         input_lay = QVBoxLayout(input_frame)
         input_lay.setContentsMargins(14, 12, 14, 12)
         self.msg_input = QLineEdit()
-        self.msg_input.setPlaceholderText("输入消息,按回车发送...")
+        self.msg_input.setPlaceholderText(tr("输入消息,按回车发送..."))
         input_lay.addWidget(self.msg_input)
         btn_row = QHBoxLayout()
-        btn_send = QPushButton("发送")
+        btn_send = QPushButton(tr("发送"))
         btn_send.setFixedWidth(_s(90))
-        btn_stop = QPushButton("⏹ 停止")
-        btn_file = QPushButton("📎 文件")
-        btn_img = QPushButton("🖼️ 图片")
-        btn_new = QPushButton("🆕 新会话")
+        btn_stop = QPushButton(tr("⏹ 停止"))
+        btn_file = QPushButton(tr("📎 文件"))
+        btn_img = QPushButton(tr("🖼️ 图片"))
+        btn_new = QPushButton(tr("🆕 新会话"))
         btn_row.addWidget(btn_send)
         btn_row.addWidget(btn_stop)
         btn_row.addWidget(btn_file)
@@ -989,14 +990,14 @@ class MainWindow(QMainWindow):
         l1.setContentsMargins(24, 20, 24, 20)
         l1.setSpacing(14)
 
-        title1 = QLabel("📦 模型商店")
+        title1 = QLabel(tr("📦 模型商店"))
         title1.setStyleSheet("font-size:18px; font-weight:600;")
         l1.addWidget(title1)
 
         filter_bar = QFrame()
         filter_lay = QHBoxLayout(filter_bar)
         filter_lay.setContentsMargins(12, 10, 12, 10)
-        filter_lay.addWidget(QLabel("下载源:"))
+        filter_lay.addWidget(QLabel(tr("下载源:")))
         self.download_src = QComboBox()
         self.download_src.addItems(SOURCE_CHOICES)
         cur_src = str(cfg.get("download_source", "auto"))
@@ -1004,21 +1005,21 @@ class MainWindow(QMainWindow):
             self.download_src.setCurrentIndex(SOURCE_CHOICES.index(cur_src))
         self.download_src.currentIndexChanged.connect(self.on_download_src_changed)
         filter_lay.addWidget(self.download_src)
-        self.btn_probe_nodes = QPushButton("🔍 自检节点")
+        self.btn_probe_nodes = QPushButton(tr("🔍 自检节点"))
         self.btn_probe_nodes.clicked.connect(self.on_probe_download_nodes)
         filter_lay.addWidget(self.btn_probe_nodes)
         filter_lay.addSpacing(14)
-        filter_lay.addWidget(QLabel("硬件筛选:"))
+        filter_lay.addWidget(QLabel(tr("硬件筛选:")))
         self.filter_hw = QComboBox()
-        self.filter_hw.addItems(["全部", "CPU/GPU", "NPU专区"])
+        self.filter_hw.addItems([tr("全部"), tr("CPU/GPU"), tr("NPU专区")])
         filter_lay.addWidget(self.filter_hw)
         filter_lay.addSpacing(14)
-        filter_lay.addWidget(QLabel("类型筛选:"))
+        filter_lay.addWidget(QLabel(tr("类型筛选:")))
         self.filter_type = QComboBox()
-        self.filter_type.addItems(["全部", "文本", "编程", "多模态", "配音"])
+        self.filter_type.addItems([tr("全部"), tr("文本"), tr("编程"), tr("多模态"), tr("配音")])
         filter_lay.addWidget(self.filter_type)
         filter_lay.addStretch()
-        btn_refresh_online = QPushButton("🔄 刷新在线列表")
+        btn_refresh_online = QPushButton(tr("🔄 刷新在线列表"))
         filter_lay.addWidget(btn_refresh_online)
         self.btn_refresh_online = btn_refresh_online
         l1.addWidget(filter_bar)
@@ -1031,8 +1032,8 @@ class MainWindow(QMainWindow):
             "在线拉取任意模型:输入关键词或 HF 仓库 ID,如 Qwen2.5 或 "
             "Qwen/Qwen2.5-0.5B-Instruct-GGUF")
         self.search_edit.returnPressed.connect(self.search_online)
-        self.btn_search = QPushButton("🔍 在线搜索")
-        self.btn_restore = QPushButton("恢复内置清单")
+        self.btn_search = QPushButton(tr("🔍 在线搜索"))
+        self.btn_restore = QPushButton(tr("恢复内置清单"))
         search_lay.addWidget(self.search_edit, stretch=1)
         search_lay.addWidget(self.btn_search)
         search_lay.addWidget(self.btn_restore)
@@ -1062,15 +1063,15 @@ class MainWindow(QMainWindow):
         l2.setContentsMargins(24, 20, 24, 20)
         l2.setSpacing(14)
 
-        title2 = QLabel("💾 本地模型")
+        title2 = QLabel(tr("💾 本地模型"))
         title2.setStyleSheet("font-size:18px; font-weight:600;")
         l2.addWidget(title2)
 
         btn_bar2 = QHBoxLayout()
-        btn_scan = QPushButton("🔄 刷新列表")
-        btn_import = QPushButton("📂 导入模型文件")
-        btn_import_ollama = QPushButton("🦙 导入 Ollama 模型")
-        btn_open_dir = QPushButton("📁 打开模型目录")
+        btn_scan = QPushButton(tr("🔄 刷新列表"))
+        btn_import = QPushButton(tr("📂 导入模型文件"))
+        btn_import_ollama = QPushButton(tr("🦙 导入 Ollama 模型"))
+        btn_open_dir = QPushButton(tr("📁 打开模型目录"))
         btn_bar2.addWidget(btn_scan)
         btn_bar2.addWidget(btn_import)
         btn_bar2.addWidget(btn_import_ollama)
@@ -1096,7 +1097,7 @@ class MainWindow(QMainWindow):
         l3.setContentsMargins(24, 20, 24, 20)
         l3.setSpacing(14)
 
-        title3 = QLabel("🎯 LoRA 微调训练")
+        title3 = QLabel(tr("🎯 LoRA 微调训练"))
         title3.setStyleSheet("font-size:18px; font-weight:600;")
         l3.addWidget(title3)
 
@@ -1104,28 +1105,28 @@ class MainWindow(QMainWindow):
         fz = QHBoxLayout(form_zone)
         fz.setContentsMargins(0, 0, 0, 0)
 
-        gb_data = QGroupBox("模型与数据")
+        gb_data = QGroupBox(tr("模型与数据"))
         form_data = QFormLayout(gb_data)
         form_data.setSpacing(10)
         self.train_base = QComboBox()
         self.train_base.setEditable(True)
         self.train_base.setPlaceholderText(
-            "HF 模型目录或仓库名(如 Qwen/Qwen2.5-0.5B-Instruct)")
-        form_data.addRow("基座模型", self.train_base)
+            tr("HF 模型目录或仓库名(如 Qwen/Qwen2.5-0.5B-Instruct)"))
+        form_data.addRow(tr("基座模型"), self.train_base)
         ds_row = QHBoxLayout()
         self.train_dataset = QLineEdit()
-        self.train_dataset.setPlaceholderText("JSONL 文件路径(prompt/completion 或 text)")
-        btn_pick_ds = QPushButton("选择")
+        self.train_dataset.setPlaceholderText(tr("JSONL 文件路径(prompt/completion 或 text)"))
+        btn_pick_ds = QPushButton(tr("选择"))
         btn_pick_ds.setFixedWidth(70)
         btn_pick_ds.clicked.connect(self._pick_dataset)
         ds_row.addWidget(self.train_dataset)
         ds_row.addWidget(btn_pick_ds)
-        form_data.addRow("数据集", ds_row)
+        form_data.addRow(tr("数据集"), ds_row)
         self.train_outname = QLineEdit("my-lora")
-        form_data.addRow("输出名称", self.train_outname)
+        form_data.addRow(tr("输出名称"), self.train_outname)
         fz.addWidget(gb_data, stretch=1)
 
-        gb_param = QGroupBox("训练参数")
+        gb_param = QGroupBox(tr("训练参数"))
         form_p = QFormLayout(gb_param)
         form_p.setSpacing(10)
         self.epoch_spin = QSpinBox()
@@ -1145,11 +1146,11 @@ class MainWindow(QMainWindow):
         self.maxlen_spin = QSpinBox()
         self.maxlen_spin.setRange(64, 8192)
         self.maxlen_spin.setValue(512)
-        form_p.addRow("训练轮数", self.epoch_spin)
-        form_p.addRow("学习率", self.lr_spin)
-        form_p.addRow("批次大小", self.batch_spin)
-        form_p.addRow("LoRA rank", self.lora_r_spin)
-        form_p.addRow("最大长度", self.maxlen_spin)
+        form_p.addRow(tr("训练轮数"), self.epoch_spin)
+        form_p.addRow(tr("学习率"), self.lr_spin)
+        form_p.addRow(tr("批次大小"), self.batch_spin)
+        form_p.addRow(tr("LoRA rank"), self.lora_r_spin)
+        form_p.addRow(tr("最大长度"), self.maxlen_spin)
         fz.addWidget(gb_param, stretch=1)
         l3.addWidget(form_zone)
 
@@ -1159,13 +1160,13 @@ class MainWindow(QMainWindow):
 
         self.train_log = QTextEdit()
         self.train_log.setReadOnly(True)
-        self.train_log.append("训练日志:等待开始训练...\n")
+        self.train_log.append(tr("训练日志:等待开始训练...") + "\n")
         l3.addWidget(self.train_log)
 
         btn_row = QHBoxLayout()
-        btn_start_train = QPushButton("开始训练")
+        btn_start_train = QPushButton(tr("开始训练"))
         btn_start_train.setFixedHeight(38)
-        btn_stop_train = QPushButton("停止训练")
+        btn_stop_train = QPushButton(tr("停止训练"))
         btn_stop_train.setEnabled(False)
         btn_row.addWidget(btn_start_train)
         btn_row.addWidget(btn_stop_train)
@@ -1186,21 +1187,21 @@ class MainWindow(QMainWindow):
         l4.setContentsMargins(24, 20, 24, 20)
         l4.setSpacing(14)
 
-        title4 = QLabel("🔄 系统更新")
+        title4 = QLabel(tr("🔄 系统更新"))
         title4.setStyleSheet("font-size:18px; font-weight:600;")
         l4.addWidget(title4)
 
-        gb4 = QGroupBox("更新源配置")
+        gb4 = QGroupBox(tr("更新源配置"))
         lay4 = QVBoxLayout(gb4)
         lay4.setSpacing(10)
         lay4.addWidget(QLabel("更新源地址(返回 JSON:{\"version\",\"url\",\"notes\"}):"))
         self.update_url = QLineEdit(str(cfg.get("update_source_url", "")))
         self.update_url.setPlaceholderText("https://example.com/novacore-update.json")
         lay4.addWidget(self.update_url)
-        self.custom_update = QCheckBox("启用自定义更新源")
+        self.custom_update = QCheckBox(tr("启用自定义更新源"))
         self.custom_update.setChecked(bool(cfg.get("custom_update_enable", False)))
         lay4.addWidget(self.custom_update)
-        btn_check_update = QPushButton("检查更新")
+        btn_check_update = QPushButton(tr("检查更新"))
         lay4.addWidget(btn_check_update)
         l4.addWidget(gb4)
         self.btn_check_update = btn_check_update
@@ -1219,14 +1220,14 @@ class MainWindow(QMainWindow):
         l5.setContentsMargins(24, 20, 24, 20)
         l5.setSpacing(14)
 
-        title5 = QLabel("🔧 依赖管理")
+        title5 = QLabel(tr("🔧 依赖管理"))
         title5.setStyleSheet("font-size:18px; font-weight:600;")
         l5.addWidget(title5)
 
         self.dep_table = QTableWidget()
         self.dep_table.setColumnCount(4)
         self.dep_table.setHorizontalHeaderLabels(
-            ["状态", "依赖名称", "功能说明", "操作"])
+            [tr("状态"), tr("依赖名称"), tr("功能说明"), tr("操作")])
         self.dep_table.horizontalHeader().setSectionResizeMode(
             QHeaderView.ResizeMode.ResizeToContents)
         self.dep_table.horizontalHeader().setStretchLastSection(True)
@@ -1235,8 +1236,8 @@ class MainWindow(QMainWindow):
         l5.addWidget(self.dep_table)
 
         btn_bar5 = QHBoxLayout()
-        btn_check_dep = QPushButton("🔍 检测全部依赖")
-        btn_install_all = QPushButton("📦 一键补全缺失依赖")
+        btn_check_dep = QPushButton(tr("🔍 检测全部依赖"))
+        btn_install_all = QPushButton(tr("📦 一键补全缺失依赖"))
         btn_bar5.addWidget(btn_check_dep)
         btn_bar5.addWidget(btn_install_all)
         btn_bar5.addStretch()
@@ -1247,7 +1248,7 @@ class MainWindow(QMainWindow):
         self.dep_log = QTextEdit()
         self.dep_log.setReadOnly(True)
         self.dep_log.setMaximumHeight(160)
-        self.dep_log.append("依赖日志:点击「检测全部依赖」开始扫描\n")
+        self.dep_log.append(tr("依赖日志:点击「检测全部依赖」开始扫描") + "\n")
         l5.addWidget(self.dep_log)
         self.stack.addWidget(p5)
 
@@ -1261,12 +1262,12 @@ class MainWindow(QMainWindow):
         lay6.setContentsMargins(24, 20, 24, 20)
         lay6.setSpacing(14)
 
-        title6 = QLabel("⚙️ 系统设置")
+        title6 = QLabel(tr("⚙️ 系统设置"))
         title6.setStyleSheet("font-size:18px; font-weight:600;")
         lay6.addWidget(title6)
 
         # 引擎设置(独立控件,修复旧版 QComboBox.clone 崩溃)
-        gb_engine = QGroupBox("推理引擎设置")
+        gb_engine = QGroupBox(tr("推理引擎设置"))
         form_engine = QFormLayout(gb_engine)
         form_engine.setSpacing(12)
         self.engine_sel = QComboBox()
@@ -1274,23 +1275,23 @@ class MainWindow(QMainWindow):
         cur_engine = str(cfg.get("default_engine", "auto"))
         if cur_engine in ENGINE_CHOICES:
             self.engine_sel.setCurrentIndex(ENGINE_CHOICES.index(cur_engine))
-        form_engine.addRow("默认推理引擎", self.engine_sel)
+        form_engine.addRow(tr("默认推理引擎"), self.engine_sel)
         self.prefer_device_sel = QComboBox()
         self.prefer_device_sel.addItems(["CPU", "GPU", "NPU-OpenVINO"])
         cur_dev = str(cfg.get("prefer_device", "CPU"))
         if [self.prefer_device_sel.itemText(i)
                 for i in range(self.prefer_device_sel.count())].count(cur_dev):
             self.prefer_device_sel.setCurrentText(cur_dev)
-        form_engine.addRow("偏好推理设备", self.prefer_device_sel)
+        form_engine.addRow(tr("偏好推理设备"), self.prefer_device_sel)
         self.ollama_host_edit = QLineEdit(str(cfg.get("ollama_host", "")))
-        form_engine.addRow("Ollama 地址", self.ollama_host_edit)
+        form_engine.addRow(tr("Ollama 地址"), self.ollama_host_edit)
         ollama_ctl = QHBoxLayout()
-        self.ollama_auto_check = QCheckBox("自动启动 Ollama 服务(程序打开时自动拉起)")
+        self.ollama_auto_check = QCheckBox(tr("自动启动 Ollama 服务(程序打开时自动拉起)"))
         self.ollama_auto_check.setChecked(bool(cfg.get("ollama_auto_start", False)))
-        btn_ollama_start = QPushButton("🚀 启动服务")
+        btn_ollama_start = QPushButton(tr("🚀 启动服务"))
         btn_ollama_start.setToolTip("立即手动启动本机 Ollama 服务(仅本地地址)")
         btn_ollama_start.clicked.connect(self.start_ollama_manually)
-        btn_ollama_test = QPushButton("测试连接")
+        btn_ollama_test = QPushButton(tr("测试连接"))
         btn_ollama_test.clicked.connect(self.test_ollama_connection)
         ollama_ctl.addWidget(self.ollama_auto_check, stretch=1)
         ollama_ctl.addWidget(btn_ollama_start)
@@ -1306,11 +1307,11 @@ class MainWindow(QMainWindow):
         self.npu_lab = QLabel(f"{npu_mark} | {npu_info.get('detail', '')}")
         self.npu_lab.setStyleSheet(
             "color:#10b981;" if npu_info.get("available") else "color:#ef4444;")
-        form_engine.addRow("Intel NPU 状态", self.npu_lab)
+        form_engine.addRow(tr("Intel NPU 状态"), self.npu_lab)
         lay6.addWidget(gb_engine)
 
         # 生成参数
-        gb_gen = QGroupBox("生成参数")
+        gb_gen = QGroupBox(tr("生成参数"))
         form_gen = QFormLayout(gb_gen)
         form_gen.setSpacing(12)
         self.temp_slider = QSlider(Qt.Orientation.Horizontal)
@@ -1320,42 +1321,42 @@ class MainWindow(QMainWindow):
         row_t = QHBoxLayout()
         row_t.addWidget(self.temp_slider, stretch=9)
         row_t.addWidget(self.temp_lab, stretch=1)
-        form_gen.addRow("温度 temperature", row_t)
+        form_gen.addRow(tr("温度 temperature"), row_t)
         self.topp_spin = QDoubleSpinBox()
         self.topp_spin.setRange(0.01, 1.0)
         self.topp_spin.setSingleStep(0.05)
         self.topp_spin.setValue(float(cfg.get("gen_top_p", 0.9)))
-        form_gen.addRow("Top-P", self.topp_spin)
+        form_gen.addRow(tr("Top-P"), self.topp_spin)
         self.topk_spin = QSpinBox()
         self.topk_spin.setRange(0, 1000)
         self.topk_spin.setValue(int(cfg.get("gen_top_k", 40)))
-        form_gen.addRow("Top-K", self.topk_spin)
+        form_gen.addRow(tr("Top-K"), self.topk_spin)
         self.maxtok_spin = QSpinBox()
         self.maxtok_spin.setRange(1, 32768)
         self.maxtok_spin.setValue(int(cfg.get("gen_max_tokens", 2048)))
-        form_gen.addRow("最大生成 tokens", self.maxtok_spin)
+        form_gen.addRow(tr("最大生成 tokens"), self.maxtok_spin)
         self.ctx_spin = QSpinBox()
         self.ctx_spin.setRange(256, 131072)
         self.ctx_spin.setValue(int(cfg.get("gen_ctx_len", 4096)))
-        form_gen.addRow("上下文长度", self.ctx_spin)
+        form_gen.addRow(tr("上下文长度"), self.ctx_spin)
         self.sysopt_edit = QLineEdit(str(cfg.get("system_prompt", "")))
-        form_gen.addRow("系统提示词", self.sysopt_edit)
+        form_gen.addRow(tr("系统提示词"), self.sysopt_edit)
         lay6.addWidget(gb_gen)
 
         # API 服务
-        gb_api = QGroupBox("API 服务设置(OpenAI 兼容接口)")
+        gb_api = QGroupBox(tr("API 服务设置(OpenAI 兼容接口)"))
         form_api = QFormLayout(gb_api)
         form_api.setSpacing(12)
         self.port_spin = QSpinBox()
         self.port_spin.setRange(1024, 65535)
         self.port_spin.setValue(int(cfg.get("api_port", 8000)))
-        form_api.addRow("API 监听端口", self.port_spin)
-        self.api_check = QCheckBox("启用 API 服务(可供外部前端调用)")
+        form_api.addRow(tr("API 监听端口"), self.port_spin)
+        self.api_check = QCheckBox(tr("启用 API 服务(可供外部前端调用)"))
         self.api_check.setChecked(bool(cfg.get("api_enable", False)))
         form_api.addRow("", self.api_check)
         api_status_row = QHBoxLayout()
         self.api_status_lab = QLabel("状态:未启动")
-        btn_api_toggle = QPushButton("立即启动/停止")
+        btn_api_toggle = QPushButton(tr("立即启动/停止"))
         btn_api_toggle.clicked.connect(self.on_toggle_api)
         api_status_row.addWidget(self.api_status_lab, stretch=1)
         api_status_row.addWidget(btn_api_toggle)
@@ -1363,7 +1364,7 @@ class MainWindow(QMainWindow):
         lay6.addWidget(gb_api)
 
         # 界面与杂项
-        gb_ui = QGroupBox("界面与其它")
+        gb_ui = QGroupBox(tr("界面与其它"))
         form_ui = QFormLayout(gb_ui)
         form_ui.setSpacing(12)
         self.theme_sel = QComboBox()
@@ -1371,29 +1372,38 @@ class MainWindow(QMainWindow):
         cur_theme = str(cfg.get("theme", "soft_dark"))
         if cur_theme in THEME_CHOICES:
             self.theme_sel.setCurrentIndex(THEME_CHOICES.index(cur_theme))
-        form_ui.addRow("主题", self.theme_sel)
+        form_ui.addRow(tr("主题"), self.theme_sel)
         self.ui_scale_sel = QComboBox()
         for label, factor in UI_SCALE_CHOICES.items():
             self.ui_scale_sel.addItem(label, float(factor))
         cur_scale = float(cfg.get("ui_scale", 1.0) or 1.0)
         scale_idx = self.ui_scale_sel.findData(cur_scale)
         self.ui_scale_sel.setCurrentIndex(scale_idx if scale_idx >= 0 else 0)
-        form_ui.addRow("界面缩放", self.ui_scale_sel)
-        form_ui.addRow("", QLabel("缩放越大文字/控件越大(部分布局重启后完全生效)"))
+        form_ui.addRow(tr("界面缩放"), self.ui_scale_sel)
+        # 界面语言(中英文;重启后生效)
+        self.ui_lang_sel = QComboBox()
+        for label, value in LANG_CHOICES:
+            self.ui_lang_sel.addItem(label, value)
+        cur_lang = str(cfg.get("ui_lang", "zh"))
+        lang_idx = self.ui_lang_sel.findData(cur_lang)
+        self.ui_lang_sel.setCurrentIndex(lang_idx if lang_idx >= 0 else 0)
+        form_ui.addRow(tr("界面语言"), self.ui_lang_sel)
+        form_ui.addRow("", QLabel(tr("语言设置将在重启后生效")))
+        form_ui.addRow("", QLabel(tr("缩放越大文字/控件越大(部分布局重启后完全生效)")))
         self.manifest_edit = QLineEdit(str(cfg.get("store_manifest_url", "")))
-        self.manifest_edit.setPlaceholderText("留空则使用内置模型清单")
-        form_ui.addRow("自定义清单地址(可选)", self.manifest_edit)
-        self.hwmon_check = QCheckBox("启用硬件实时监控")
+        self.manifest_edit.setPlaceholderText(tr("留空则使用内置模型清单"))
+        form_ui.addRow(tr("自定义清单地址(可选)"), self.manifest_edit)
+        self.hwmon_check = QCheckBox(tr("启用硬件实时监控"))
         self.hwmon_check.setChecked(bool(cfg.get("hardware_monitor", True)))
         form_ui.addRow("", self.hwmon_check)
-        self.fb_check = QCheckBox("显示下载悬浮球(右下角,可开关)")
+        self.fb_check = QCheckBox(tr("显示下载悬浮球(右下角,可开关)"))
         self.fb_check.setChecked(bool(cfg.get("floating_ball_enable", True)))
         self.fb_check.stateChanged.connect(self._on_fb_toggle)
         form_ui.addRow("", self.fb_check)
         lay6.addWidget(gb_ui)
 
         # 模型下载源(与商店页同步)
-        gb_dl = QGroupBox("模型下载源")
+        gb_dl = QGroupBox(tr("模型下载源"))
         form_dl = QFormLayout(gb_dl)
         form_dl.setSpacing(12)
         self.download_source_sel = QComboBox()
@@ -1410,14 +1420,14 @@ class MainWindow(QMainWindow):
             dl_idx if dl_idx >= 0 else 0)
         self.download_source_sel.currentTextChanged.connect(
             self._on_dl_source_changed)
-        form_dl.addRow("模型下载源", self.download_source_sel)
+        form_dl.addRow(tr("模型下载源"), self.download_source_sel)
         btn_probe = QPushButton("🔎 自检各下载节点可达性")
         btn_probe.clicked.connect(self._probe_dl_nodes)
         form_dl.addRow("", btn_probe)
         lay6.addWidget(gb_dl)
 
         # pip 依赖下载镜像
-        gb_pip = QGroupBox("依赖下载镜像(pip)")
+        gb_pip = QGroupBox(tr("依赖下载镜像(pip)"))
         form_pip = QFormLayout(gb_pip)
         form_pip.setSpacing(12)
         self.pip_mirror_sel = QComboBox()
@@ -1428,9 +1438,9 @@ class MainWindow(QMainWindow):
         cur_mirror = str(cfg.get("pip_mirror", "auto"))
         mirror_idx = self.pip_mirror_sel.findData(cur_mirror)
         self.pip_mirror_sel.setCurrentIndex(mirror_idx if mirror_idx >= 0 else 0)
-        form_pip.addRow("依赖下载镜像", self.pip_mirror_sel)
+        form_pip.addRow(tr("依赖下载镜像"), self.pip_mirror_sel)
         mirror_row = QHBoxLayout()
-        btn_mirror_test = QPushButton("测试各镜像")
+        btn_mirror_test = QPushButton(tr("测试各镜像"))
         btn_mirror_test.clicked.connect(self.test_pip_mirrors)
         mirror_row.addWidget(btn_mirror_test)
         mirror_row.addStretch()
@@ -1447,7 +1457,7 @@ class MainWindow(QMainWindow):
         lay6.addWidget(gb_pip)
 
         # 系统重置(危险操作区,带强确认防误触)
-        gb_reset = QGroupBox("系统重置")
+        gb_reset = QGroupBox(tr("系统重置"))
         reset_lay = QVBoxLayout(gb_reset)
         reset_lay.setSpacing(10)
         reset_lay.addWidget(QLabel(
@@ -1455,11 +1465,11 @@ class MainWindow(QMainWindow):
             "「恢复出厂设置」:清空全部数据(配置、本地模型、对话历史、LoRA、数据集、日志),"
             "不可恢复!"))
         reset_btn_row = QHBoxLayout()
-        self.btn_reset_default = QPushButton("↺ 恢复默认设置")
+        self.btn_reset_default = QPushButton(tr("↺ 恢复默认设置"))
         self.btn_reset_default.setStyleSheet(
             "QPushButton{background:#b45309;} QPushButton:hover{background:#d97706;}")
         self.btn_reset_default.clicked.connect(self.on_reset_defaults)
-        self.btn_reset_factory = QPushButton("☠ 恢复出厂设置")
+        self.btn_reset_factory = QPushButton(tr("☠ 恢复出厂设置"))
         self.btn_reset_factory.setStyleSheet(
             "QPushButton{background:#b91c1c;} QPushButton:hover{background:#dc2626;}")
         self.btn_reset_factory.clicked.connect(self.on_factory_reset)
@@ -1469,7 +1479,7 @@ class MainWindow(QMainWindow):
         reset_lay.addLayout(reset_btn_row)
         lay6.addWidget(gb_reset)
 
-        btn_save = QPushButton("💾 保存全部设置")
+        btn_save = QPushButton(tr("💾 保存全部设置"))
         btn_save.setFixedHeight(_s(42))
         lay6.addWidget(btn_save)
         self.btn_save_set = btn_save
@@ -1801,7 +1811,7 @@ class MainWindow(QMainWindow):
 
         self._set_loading(True)
         self._loaded_model_name = name
-        self._mark_model_status(name, "⏳ 启动中", "#f59e0b", True)
+        self._mark_model_status(name, tr("⏳ 启动中"), "#f59e0b", True)
         # 设备选择:顶部「推理设备」下拉框的即时选择优先(用户在界面上的
         # 最新意图),配置 prefer_device 仅作兜底。旧实现只读配置,导致
         # 顶部选了 NPU-OpenVINO 而配置仍是 CPU 时模型实际跑在 CPU 上。
@@ -1825,7 +1835,7 @@ class MainWindow(QMainWindow):
             self.chat_box.append("")
         worker = ModelLoadWorker(engine_mgr, model_ref, eid, device=device)
         worker.progress.connect(
-            lambda s: self._mark_model_status(name, f"⏳ {s}", "#f59e0b", True))
+            lambda s: self._mark_model_status(name, "⏳ " + str(s), "#f59e0b", True))
         worker.done.connect(
             lambda ok, msg, extra, n=name: self.on_load_done(ok, msg, extra, n))
         self._load_worker = worker
@@ -1863,7 +1873,7 @@ class MainWindow(QMainWindow):
     def _ollama_load_failed(self, name: str, detail: str) -> None:
         self._set_loading(False)
         self._loaded_model_name = ""
-        self._mark_model_status(name, "❌ 启动失败", "#ef4444", False)
+        self._mark_model_status(name, tr("❌ 启动失败"), "#ef4444", False)
         self.chat_box.append(f"❌ Ollama 加载失败: {detail}\n")
         QMessageBox.warning(
             self, "Ollama 加载失败",
@@ -2022,9 +2032,9 @@ class MainWindow(QMainWindow):
             device = extra.get("device") if isinstance(extra, dict) else None
             # 状态徽章如实标注实际运行设备(NPU 未成功时绝不假装在跑 NPU)
             if device:
-                self._mark_model_status(name, f"✅ 运行中({device})", "#10b981", True)
+                self._mark_model_status(name, tr("✅ 运行中") + f"({device})", "#10b981", True)
             else:
-                self._mark_model_status(name, "✅ 运行中", "#10b981", True)
+                self._mark_model_status(name, tr("✅ 运行中"), "#10b981", True)
             self.chat_box.append(f"✅ {msg}" + (f"({detail})" if detail else "")
                                  + "\n")
             self.engine_lab.setText(f"当前引擎: {engine_mgr.current_id}")
@@ -2129,7 +2139,7 @@ class MainWindow(QMainWindow):
         self._loaded_model_name = ""
         # 所有模型行状态复位为已停止
         for row in self._model_rows.values():
-            row.set_status("💤 已停止", "#889", False)
+            row.set_status(tr("💤 已停止"), "#889", False)
         self.engine_lab.setText("当前引擎: 未加载")
         self.chat_box.append("⏹️ 已停止模型并释放显存/内存(模型文件保留,可随时重新加载)\n")
         self.update_loaded_model()
@@ -2402,7 +2412,7 @@ class MainWindow(QMainWindow):
         self._model_rows.clear()
         self.local_list.clear()
         if not items:
-            it = QListWidgetItem("  暂无本地模型,可在商店下载或手动导入")
+            it = QListWidgetItem("  " + tr("暂无本地模型,可在商店下载或手动导入"))
             it.setForeground(QColor("#889"))
             self.local_list.addItem(it)
         for m in items:
@@ -2675,6 +2685,7 @@ class MainWindow(QMainWindow):
         cfg.set("api_port", self.port_spin.value())
         cfg.set("api_enable", self.api_check.isChecked())
         cfg.set("theme", self.theme_sel.currentText())
+        cfg.set("ui_lang", self.ui_lang_sel.currentData() or "zh")
         cfg.set("store_manifest_url", self.manifest_edit.text().strip())
         cfg.set("hardware_monitor", self.hwmon_check.isChecked())
         cfg.set("floating_ball_enable", self.fb_check.isChecked())
@@ -2859,6 +2870,7 @@ class MainWindow(QMainWindow):
         self.ollama_auto_check.setChecked(bool(cfg.get("ollama_auto_start", False)))
         set_combo_data(self.pip_mirror_sel, cfg.get("pip_mirror", "auto"))
         set_combo_data(self.ui_scale_sel, float(cfg.get("ui_scale", 1.0) or 1.0))
+        set_combo_data(self.ui_lang_sel, str(cfg.get("ui_lang", "zh")))
         self.temp_slider.setValue(int(float(cfg.get("gen_temperature", 0.7)) * 100))
         self.topp_spin.setValue(float(cfg.get("gen_top_p", 0.9)))
         self.topk_spin.setValue(int(cfg.get("gen_top_k", 40)))
@@ -3041,6 +3053,8 @@ def main() -> None:
     if len(sys.argv) >= 4 and sys.argv[1] == "--npu-compile":
         _npu_compile_cli(sys.argv[2], sys.argv[3])
         return
+    # 设置界面语言(zh/en),创建窗口前生效;切换语言重启后生效
+    set_language(str(cfg.get("ui_lang", "zh")))
     global UI_SCALE
     try:
         UI_SCALE = float(cfg.get("ui_scale", 1.0) or 1.0)

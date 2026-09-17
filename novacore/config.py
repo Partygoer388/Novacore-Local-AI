@@ -38,6 +38,7 @@ CONFIG_SPEC: dict[str, tuple[type, Any, Optional[Callable[[Any], bool]]]] = {
     "pip_mirror": (str, "auto", lambda v: v in ["auto", "official", "tsinghua",
         "aliyun", "douban", "ustc", "huawei", "tencent", "netease", "sjtu"]),
     "ui_scale": (float, 1.0, lambda v: 0.5 <= v <= 3.0),
+    "ui_lang": (str, "zh", lambda v: v in ("zh", "en")),
     # 生成参数
     "gen_temperature": (float, 0.7, lambda v: 0.0 <= v <= 2.0),
     "gen_top_p": (float, 0.9, lambda v: 0.0 < v <= 1.0),
