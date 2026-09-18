@@ -3,6 +3,7 @@
 import sys
 import unittest
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -48,6 +49,20 @@ class TestDeps(unittest.TestCase):
         self.assertIn("install", cmd)
         self.assertIn("peft", cmd)
         self.assertIn("https://pypi.org/simple", cmd)
+
+    def test_frozen_mode_refuses_and_has_no_python(self):
+        """打包版(sys.frozen):绝不启动 sys.executable,应直接报错并给出说明。"""
+        with mock.patch.object(sys, "frozen", True, create=True):
+            self.assertEqual(deps.python_for_pip(), "")
+            self.assertTrue(deps.is_frozen())
+            with mock.patch("novacore.deps.subprocess.Popen") as popen:
+                with self.assertRaises(deps.PipInstallError):
+                    deps.install_package("peft", progress=lambda _: None)
+                popen.assert_not_called()   # 关键:绝不能拉起子进程(否则会弹窗)
+
+    def test_source_mode_python_is_current(self):
+        self.assertFalse(deps.is_frozen())
+        self.assertEqual(deps.python_for_pip(), sys.executable)
 
     def test_mirrors_have_china_options(self):
         urls = [m[0] for m in deps.PIP_MIRRORS]

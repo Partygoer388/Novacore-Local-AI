@@ -1,15 +1,20 @@
 # -*- mode: python ; coding: utf-8 -*-
 from PyInstaller.utils.hooks import collect_submodules
+from PyInstaller.utils.hooks import collect_all
 
+datas = [('novacore.ico', '.'), ('C:\\Users\\Dylan\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\openvino\\libs', 'openvino\\libs'), ('C:\\Users\\Dylan\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\openvino_tokenizers\\lib\\openvino_tokenizers.dll', 'openvino_tokenizers\\lib')]
+binaries = []
 hiddenimports = ['PyQt6.QtCore', 'PyQt6.QtGui', 'PyQt6.QtWidgets', 'psutil', 'requests', 'fastapi', 'uvicorn', 'uvicorn.logging', 'uvicorn.loops', 'uvicorn.loops.auto', 'uvicorn.protocols', 'uvicorn.protocols.http', 'uvicorn.protocols.http.auto', 'uvicorn.protocols.websockets', 'uvicorn.protocols.websockets.auto', 'uvicorn.lifespan', 'uvicorn.lifespan.on', 'pynvml', 'openvino', 'openvino_genai', 'openvino_tokenizers', 'gguf', 'numpy']
 hiddenimports += collect_submodules('novacore')
+tmp_ret = collect_all('llama_cpp')
+datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 
 
 a = Analysis(
     ['novacore_main.py'],
     pathex=[],
-    binaries=[],
-    datas=[('novacore.ico', '.'), ('C:\\Users\\Dylan\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\openvino\\libs', 'openvino\\libs'), ('C:\\Users\\Dylan\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\openvino_tokenizers\\lib\\openvino_tokenizers.dll', 'openvino_tokenizers\\lib')],
+    binaries=binaries,
+    datas=datas,
     hiddenimports=hiddenimports,
     hookspath=[],
     hooksconfig={},

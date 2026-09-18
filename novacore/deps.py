@@ -144,9 +144,10 @@ def llama_wheel_reachable(timeout: float = 3.0) -> bool:
     return ok
 
 
-def build_pip_cmd(package: str, mirror_index: str) -> list[str]:
+def build_pip_cmd(package: str, mirror_index: str,
+                  python_exe: Optional[str] = None) -> list[str]:
     cmd = [
-        sys.executable, "-m", "pip", "install", package,
+        python_exe or sys.executable, "-m", "pip", "install", package,
         "-i", mirror_index,
         "--disable-pip-version-check",
     ]
@@ -161,6 +162,34 @@ def build_pip_cmd(package: str, mirror_index: str) -> list[str]:
 
 class PipInstallError(RuntimeError):
     pass
+
+
+def is_frozen() -> bool:
+    """是否运行在 PyInstaller 打包环境(exe)中。"""
+    return bool(getattr(sys, "frozen", False))
+
+
+FROZEN_INSTALL_HINT = (
+    "打包版不支持在线安装可选依赖。\n\n"
+    "原因:打包版没有独立的 Python/pip 环境,即使装到了系统 Python 里,"
+    "打包程序自身也无法加载这些库(早期版本会误启动程序自身,现已修复)。\n\n"
+    "• llama.cpp(GGUF 推理):应已随打包版内置;若仍显示缺失,请下载最新版。\n"
+    "• torch / transformers / peft / datasets(模型训练):请改用"
+    "源码方式运行后再安装。\n\n"
+    "获取源码后运行:  python novacore_main.py"
+)
+
+
+def python_for_pip() -> str:
+    """返回可用于执行 pip 的解释器路径。
+
+    源码运行:当前解释器;打包运行:不存在可用的独立 Python(返回空串),
+    此时调用方应直接给出提示而**不要**去启动 sys.executable
+    (打包下它就是程序自身 exe,会弹出新窗口且 pip 根本不会执行)。
+    """
+    if is_frozen():
+        return ""
+    return sys.executable
 
 
 # 自动模式下探测出的最佳镜像顺序缓存(URL, label);TTL 内复用,避免重复自检
@@ -203,7 +232,16 @@ def _best_mirror_order(progress=None, ttl: float = 120.0) -> list[tuple[str, str
 def install_package(package: str, progress=None, cancel_check=None,
                     mirror: str = "auto") -> bool:
     """同步安装单个包;镜像故障转移。progress(line), cancel_check()->bool。
-    mirror: 为 PIP_MIRROR_IDS 之一时该镜像优先,auto 自检节点按延迟排序(带缓存)。"""
+    mirror: 为 PIP_MIRROR_IDS 之一时该镜像优先,auto 自检节点按延迟排序(带缓存)。
+
+    打包运行(frozen)时直接报错并给出说明,绝不启动 sys.executable——
+    那会误启动程序自身(新开窗口)且 pip 根本不会执行。
+    """
+    python_exe = python_for_pip()
+    if not python_exe:
+        if progress:
+            progress("❌ " + FROZEN_INSTALL_HINT)
+        raise PipInstallError(FROZEN_INSTALL_HINT)
     if str(mirror or "auto") == "auto":
         order = _best_mirror_order(progress)
     else:
@@ -214,7 +252,7 @@ def install_package(package: str, progress=None, cancel_check=None,
             raise InterruptedError("安装已取消")
         if progress:
             progress(f"[{label}] 正在安装 {package} ...")
-        cmd = build_pip_cmd(package, index)
+        cmd = build_pip_cmd(package, index, python_exe)
         proc = None
         try:
             proc = subprocess.Popen(

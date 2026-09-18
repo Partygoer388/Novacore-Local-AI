@@ -51,6 +51,7 @@ pyinstaller ^
   --hidden-import=openvino ^
   --hidden-import=openvino_genai ^
   --hidden-import=openvino_tokenizers ^
+  --collect-all=llama_cpp ^
   --hidden-import=gguf ^
   --hidden-import=numpy ^
   --add-data="novacore.ico;." ^

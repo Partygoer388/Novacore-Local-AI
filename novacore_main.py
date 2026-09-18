@@ -1275,6 +1275,15 @@ class MainWindow(QMainWindow):
         title5.setStyleSheet("font-size:18px; font-weight:600;")
         l5.addWidget(title5)
 
+        if deps_core.is_frozen():
+            pack_hint = QLabel(tr(
+                "打包版已内置核心推理依赖,无需安装。"
+                "torch / transformers / peft / datasets(模型训练)等大型依赖"
+                "无法在打包版内安装,请改用源码方式运行:python novacore_main.py"))
+            pack_hint.setWordWrap(True)
+            pack_hint.setStyleSheet("color:#eab308;")
+            l5.addWidget(pack_hint)
+
         self.dep_table = QTableWidget()
         self.dep_table.setColumnCount(4)
         self.dep_table.setHorizontalHeaderLabels(
@@ -2728,32 +2737,55 @@ class MainWindow(QMainWindow):
                             f" {len(missing)} 缺失"
                             + (f"({', '.join(missing)})" if missing else ""))
 
+    def _dep_install_busy(self) -> bool:
+        w = getattr(self, "_dep_worker", None)
+        return bool(w is not None and w.isRunning())
+
     def install_single_dep(self, pkg: str) -> None:
-        self.dep_log.append(f"正在安装 {pkg} ...")
-        worker = DepInstallWorker([pkg],
-                                  mirror=str(cfg.get("pip_mirror", "auto")))
-        worker.log.connect(self.dep_log.append)
-        worker.done.connect(lambda ok, msg: self.check_deps())
-        registry.register(worker)
-        worker.start()
+        if self._dep_install_busy():
+            QMessageBox.information(self, tr("提示"),
+                                    "已有依赖安装任务正在进行,请等待完成。")
+            return
+        self._start_dep_install([pkg])
 
     def install_all_missing_deps(self) -> None:
+        if self._dep_install_busy():
+            QMessageBox.information(self, tr("提示"),
+                                    "已有依赖安装任务正在进行,请等待完成。")
+            return
         missing = [d["key"] for d in deps_core.check_deps() if not d["installed"]]
         if not missing:
-            QMessageBox.information(self, "提示", "所有依赖均已安装")
+            QMessageBox.information(self, tr("提示"), "所有依赖均已安装")
+            return
+        # 打包版无法在线安装(见 deps.FROZEN_INSTALL_HINT):直接给出说明,不启动安装
+        if deps_core.is_frozen():
+            self.dep_log.append("❌ " + deps_core.FROZEN_INSTALL_HINT)
+            QMessageBox.warning(self, "打包版不支持在线安装依赖",
+                                deps_core.FROZEN_INSTALL_HINT)
             return
         reply = QMessageBox.question(
-            self, "确认",
+            self, tr("确认"),
             f"将安装以下缺失依赖:\n{', '.join(missing)}\n是否继续?")
         if reply != QMessageBox.StandardButton.Yes:
             return
-        self.dep_log.append(f"开始批量安装:{', '.join(missing)}")
-        worker = DepInstallWorker(missing,
+        self._start_dep_install(missing)
+
+    def _start_dep_install(self, packages: list) -> None:
+        self.dep_log.append(f"开始安装:{', '.join(packages)}")
+        worker = DepInstallWorker(list(packages),
                                   mirror=str(cfg.get("pip_mirror", "auto")))
         worker.log.connect(self.dep_log.append)
-        worker.done.connect(lambda ok, msg: self.check_deps())
+        worker.done.connect(self._on_dep_install_done)
+        self._dep_worker = worker
         registry.register(worker)
         worker.start()
+
+    def _on_dep_install_done(self, ok: bool, msg: str) -> None:
+        """安装结束:成功才重新扫描并刷新表格,失败给出原因(不再误报成功)。"""
+        if ok:
+            self.check_deps()
+        else:
+            self.dep_log.append(f"❌ {msg}")
 
     # ==================== 镜像探测 / Ollama 连接 ====================
     def test_pip_mirrors(self) -> None:
